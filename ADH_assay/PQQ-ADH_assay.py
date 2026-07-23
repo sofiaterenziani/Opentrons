@@ -26,9 +26,9 @@ def run(protocol):
 def setup(protocol):
     # Load modules and labware
     global tips_96, tips_rows, tips_columns, plate, metals, alcohols, enzyme, trash, buff_pqq_dcpip_pms, pipette
-    tips_96 = protocol.load_labware('opentrons_flex_96_tiprack_200ul', 'B1', adapter='opentrons_flex_96_tiprack_adapter')
-    tips_rows = protocol.load_labware('opentrons_flex_96_tiprack_200ul', 'B3')
-    tips_columns = protocol.load_labware('opentrons_flex_96_tiprack_200ul', 'D3')
+    tips_96 = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'B1', adapter='opentrons_flex_96_tiprack_adapter')
+    tips_rows = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'B3')
+    tips_columns = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'D3')
 
     # Labware
     plate = protocol.load_labware('corning_384_wellplate_112ul_flat', 'C2')
@@ -90,26 +90,26 @@ def pickup_tips(layout, protocol):
 def add_buffer(protocol):
     pickup_tips('all', protocol)
     destinations = [plate.wells_by_name()[well] for well in ['A1', 'A2', 'B2', 'B1']]
-    pipette.distribute(buffer_volume, buff_pqq_dcpip_pms.wells_by_name()['A1'], destinations, new_tip='never', disposal_volume=20)
+    pipette.distribute(buffer_volume, buff_pqq_dcpip_pms.wells_by_name()['A1'], destinations, new_tip='never', disposal_volume=20, mix_before=(2,100))
     pipette.return_tip()
 
 def add_metals(protocol):
     for i in range(2):
         pickup_tips('row', protocol)
         destinations = [plate.rows()[row][i].top().move(Point(x=1, y=0, z=-1)) for row in range(16)]
-        pipette.distribute(metals_volume, metals.rows()[i][0], destinations, new_tip='never', disposal_volume=20)
+        pipette.distribute(metals_volume, metals.rows()[i][0], destinations, new_tip='never', disposal_volume=20, mix_before=(2,100))
         pipette.drop_tip()
 
 def add_alcohols(protocol):
     for j in range(2):
         pickup_tips('column', protocol)
         destinations = [plate.rows()[j][column].top().move(Point(x=-1, y=0, z=-1)) for column in range(24)]
-        pipette.distribute(alcohols_volume, alcohols.rows()[0][j], destinations, new_tip='never', disposal_volume=20)
+        pipette.distribute(alcohols_volume, alcohols.rows()[0][j], destinations, new_tip='never', disposal_volume=20, mix_before=(2,100))
         pipette.drop_tip()
 
 def add_PQQ_ADH(protocol):
     tips_96.reset()
     pickup_tips('all', protocol)
     destinations = [plate.wells_by_name()[well].top().move(Point(x=0, y=1, z=-1)) for well in ['A1', 'A2', 'B2', 'B1']]
-    pipette.distribute(enzyme_volume, enzyme['A1'], destinations, new_tip='never', disposal_volume=20)
+    pipette.distribute(enzyme_volume, enzyme['A1'], destinations, new_tip='never', disposal_volume=20, mix_before=(2,100))
     pipette.return_tip()
