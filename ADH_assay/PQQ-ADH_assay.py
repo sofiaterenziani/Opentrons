@@ -26,9 +26,9 @@ def run(protocol):
 def setup(protocol):
     # Load modules and labware
     global tips_96, tips_rows, tips_columns, plate, metals, alcohols, enzyme, trash, buff_pqq_dcpip_pms, pipette
-    tips_96 = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'B1', adapter='opentrons_flex_96_tiprack_adapter')
-    tips_rows = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'B3')
-    tips_columns = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'D3')
+    tips_96 = protocol.load_labware('opentrons_flex_96_tiprack_200ul', 'B1', adapter='opentrons_flex_96_tiprack_adapter')
+    tips_rows = protocol.load_labware('opentrons_flex_96_tiprack_200ul', 'B3')
+    tips_columns = protocol.load_labware('opentrons_flex_96_tiprack_200ul', 'D3')
 
     # Labware
     plate = protocol.load_labware('corning_384_wellplate_112ul_flat', 'C2')
@@ -41,10 +41,11 @@ def setup(protocol):
 
     #volumes
     global buffer_volume, metals_volume, alcohols_volume, enzyme_volume
-    buffer_volume = 20
-    metals_volume = 10
-    alcohols_volume = 10
-    enzyme_volume = 40
+    rxn_vol = 40
+    buffer_volume = rxn_vol/4
+    metals_volume = rxn_vol/8
+    alcohols_volume = rxn_vol/8
+    enzyme_volume = rxn_vol/2
 
 def define_liquids(protocol):
     buffer_liquid = protocol.define_liquid(
