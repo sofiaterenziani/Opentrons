@@ -29,6 +29,7 @@ def setup(protocol):
     tips_96 = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'B1', adapter='opentrons_flex_96_tiprack_adapter')
     tips_rows = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'B3')
     tips_columns = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'D3')
+    temp_module = protocol.load_module('temperature module gen2', 'C1')
 
     # Labware
     plate = protocol.load_labware('corning_384_wellplate_112ul_flat', 'C2')
@@ -36,7 +37,7 @@ def setup(protocol):
     alcohols = protocol.load_labware('greiner_96_wellplate_323ul', 'C3')
     enzyme = protocol.load_labware('nest_1_reservoir_195ml', 'B2')
     trash = protocol.load_trash_bin ('D1')
-    buff_pqq_dcpip_pms = protocol.load_labware('nest_1_reservoir_195ml', 'C1')
+    buff_pqq_dcpip_pms = temp_module.load_labware('nest_1_reservoir_195ml')
     pipette = protocol.load_instrument('flex_96channel_1000')
 
     #volumes
