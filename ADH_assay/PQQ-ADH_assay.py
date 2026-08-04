@@ -111,6 +111,12 @@ def add_alcohols(protocol):
 def add_PQQ_ADH(protocol):
     tips_96.reset()
     pickup_tips('all', protocol)
-    destinations = [plate.wells_by_name()[well].top().move(Point(x=0, y=1, z=-1)) for well in ['A1', 'A2', 'B2', 'B1']]
-    pipette.distribute(enzyme_volume, enzyme['A1'], destinations, new_tip='never', disposal_volume=20, mix_before=(2,100))
+    destination_wells = [plate.wells_by_name()[well] for well in ['A1', 'A2', 'B2', 'B1']]
+    pipette.mix(2, 100, enzyme['A1'])
+    
+    for dest in destination_wells:
+        pipette.aspirate(enzyme_volume, enzyme['A1'])
+        pipette.dispense(enzyme_volume, dest.top().move(Point(x=0, y=0, z=0)))
+        pipette.touch_tip(dest, v_offset=-1, speed=20)
+    
     pipette.return_tip()
