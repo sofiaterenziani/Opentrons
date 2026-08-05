@@ -42,7 +42,7 @@ def setup(protocol):
 
     #volumes
     global buffer_volume, metals_volume, alcohols_volume, enzyme_volume
-    rxn_vol = 40
+    rxn_vol = 60
     buffer_volume = rxn_vol/4
     metals_volume = rxn_vol/8
     alcohols_volume = rxn_vol/8
@@ -116,7 +116,7 @@ def add_PQQ_ADH(protocol):
     
     for dest in destination_wells:
         pipette.aspirate(enzyme_volume, enzyme['A1'])
-        pipette.dispense(enzyme_volume, dest.top().move(Point(x=0, y=0, z=0)))
+        pipette.dispense(enzyme_volume, dest.top())
         pipette.touch_tip(dest, v_offset=-1, speed=20)
     
     pipette.return_tip()
