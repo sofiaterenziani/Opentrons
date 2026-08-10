@@ -13,6 +13,15 @@ metadata = {
 
 requirements = {'robotType': 'Flex','apiLevel': '2.29'}
 
+# Runtime options
+
+def add_parameters(parameters):
+    parameters.add_bool(
+        variable_name="USE_TEMP_MODULE",
+        display_name="Temp module in slot C1?",
+        description="Temp module in slot C1?",
+        default=False)
+    
 def run(protocol):
     protocol.set_rail_lights(True)
     setup(protocol)
@@ -25,11 +34,15 @@ def run(protocol):
 
 def setup(protocol):
     # Load modules and labware
-    global tips_96, tips_rows, tips_columns, plate, metals, alcohols, enzyme, trash, buff_pqq_dcpip_pms, pipette
+    global tips_96, tips_rows, tips_columns, plate, metals, alcohols, enzyme, trash, buff_pqq_dcpip_pms, pipette, temp_module
     tips_96 = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'B1', adapter='opentrons_flex_96_tiprack_adapter')
     tips_rows = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'B3')
     tips_columns = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'D3')
-    temp_module = protocol.load_module('temperature module gen2', 'C1')
+    # Optionally load the temperature module in C1 or use plain labware in C1
+    if protocol.params.USE_TEMP_MODULE is True:
+        temp_module = protocol.load_module('temperature module gen2', 'C1')
+    else:
+        temp_module = None
 
     # Labware
     plate = protocol.load_labware('corning_384_wellplate_112ul_flat', 'C2')
@@ -37,7 +50,11 @@ def setup(protocol):
     alcohols = protocol.load_labware('greiner_96_wellplate_323ul', 'C3')
     enzyme = protocol.load_labware('nest_1_reservoir_195ml', 'B2')
     trash = protocol.load_trash_bin ('D1')
-    buff_pqq_dcpip_pms = temp_module.load_labware('nest_1_reservoir_195ml')
+    # Load the buffer/PQQ/DCPIP/PMS reservoir either on the temp module or directly in C1
+    if temp_module is not None:
+        buff_pqq_dcpip_pms = temp_module.load_labware('nest_1_reservoir_195ml')
+    else:
+        buff_pqq_dcpip_pms = protocol.load_labware('nest_1_reservoir_195ml', 'C1')
     pipette = protocol.load_instrument('flex_96channel_1000')
 
     #volumes
@@ -91,21 +108,41 @@ def pickup_tips(layout, protocol):
 def add_buffer(protocol):
     pickup_tips('all', protocol)
     destinations = [plate.wells_by_name()[well] for well in ['A1', 'A2', 'B2', 'B1']]
-    pipette.distribute(buffer_volume, buff_pqq_dcpip_pms.wells_by_name()['A1'], destinations, new_tip='never', disposal_volume=20, mix_before=(2,100))
+    source = buff_pqq_dcpip_pms.wells_by_name()['A1']
+    total_volume = buffer_volume * len(destinations) + 20
+    pipette.mix(2, 100, source)
+    pipette.aspirate(total_volume, source.bottom(1))
+    for dest in destinations:
+        pipette.dispense(buffer_volume, dest.bottom(1))
+        pipette.touch_tip(location=dest, v_offset=-4, speed=20)
+    pipette.blow_out(source.top())
     pipette.return_tip()
 
 def add_metals(protocol):
     for i in range(2):
         pickup_tips('row', protocol)
-        destinations = [plate.rows()[row][i].top().move(Point(x=1, y=0, z=-1)) for row in range(16)]
-        pipette.distribute(metals_volume, metals.rows()[i][0], destinations, new_tip='never', disposal_volume=20, mix_before=(2,100))
+        destinations = [plate.rows()[row][i] for row in range(16)]
+        source = metals.rows()[i][0]
+        total_volume = metals_volume * len(destinations) + 20
+        pipette.mix(2, 100, source)
+        pipette.aspirate(total_volume, source.bottom(1))
+        for dest in destinations:
+            pipette.dispense(metals_volume, dest.top())
+            pipette.touch_tip(location=dest, v_offset=-3, speed=20)
+        pipette.blow_out(source.top())
         pipette.drop_tip()
 
 def add_alcohols(protocol):
     for j in range(2):
         pickup_tips('column', protocol)
-        destinations = [plate.rows()[j][column].top().move(Point(x=-1, y=0, z=-1)) for column in range(24)]
-        pipette.distribute(alcohols_volume, alcohols.rows()[0][j], destinations, new_tip='never', disposal_volume=20, mix_before=(2,100))
+        destinations = [plate.rows()[j][column] for column in range(24)]
+        source = alcohols.rows()[0][j]
+        total_volume = (alcohols_volume * len(destinations)) + 20
+        pipette.mix(2, 100, source)
+        pipette.aspirate(total_volume, source.bottom(1))
+        for dest in destinations:
+            pipette.dispense(alcohols_volume, dest.top())
+            pipette.touch_tip(location=dest, v_offset=-2, speed=20)
         pipette.drop_tip()
 
 def add_PQQ_ADH(protocol):
@@ -113,10 +150,12 @@ def add_PQQ_ADH(protocol):
     pickup_tips('all', protocol)
     destination_wells = [plate.wells_by_name()[well] for well in ['A1', 'A2', 'B2', 'B1']]
     pipette.mix(2, 100, enzyme['A1'])
-    
+    source = enzyme['A1']
+    total_volume = enzyme_volume * len(destination_wells) + 20
+    pipette.mix(2, 100, source)
+    pipette.aspirate(total_volume, source.bottom(1))
     for dest in destination_wells:
-        pipette.aspirate(enzyme_volume, enzyme['A1'])
-        pipette.dispense(enzyme_volume, dest.top())
+        pipette.dispense(enzyme_volume, dest.top(z=-3))
         pipette.touch_tip(dest, v_offset=-1, speed=20)
-    
+    pipette.blow_out(source.top())
     pipette.return_tip()
