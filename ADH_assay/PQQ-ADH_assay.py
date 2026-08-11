@@ -29,16 +29,17 @@ def run(protocol):
     add_buffer(protocol)
     add_metals(protocol)
     add_alcohols(protocol)
+    add_controls(protocol)
     add_PQQ_ADH(protocol)
     protocol.set_rail_lights(False)
 
 def setup(protocol):
     # Load modules and labware
     global tips_96_buffer, tips_96_enzyme, tips_rows, tips_columns, plate, metals, alcohols, enzyme, trash, buff_pqq_dcpip_pms, pipette, temp_module
-    tips_96_buffer = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'B1', adapter='opentrons_flex_96_tiprack_adapter')
-    tips_96_enzyme = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'A1', adapter='opentrons_flex_96_tiprack_adapter')
-    tips_rows = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'B3')
-    tips_columns = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'D3')
+    tips_96_buffer = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'B3', adapter='opentrons_flex_96_tiprack_adapter')
+    tips_96_enzyme = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'A3', adapter='opentrons_flex_96_tiprack_adapter')
+    tips_rows = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'B1')
+    tips_columns = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'A2')
     # Optionally load the temperature module in C1 or use plain labware in C1
     if protocol.params.USE_TEMP_MODULE is True:
         temp_module = protocol.load_module('temperature module gen2', 'C1')
@@ -82,6 +83,16 @@ def define_liquids(protocol):
         description="15 different alcohol mixtures",
         display_color="#FF6B6B")
     
+    water_liquid = protocol.define_liquid(
+        name="Water Control",
+        description="Water control for negative control wells",
+        display_color="#00BFFF")
+    
+    tcep_liquid = protocol.define_liquid(
+        name="TCEP Control",
+        description="TCEP control for stability checks",
+        display_color="#8A2BE2")
+    
     enzyme_liquid = protocol.define_liquid(
         name="PQQ-ADH Enzyme",
         description="15 PQQ-ADH enzyme mixtures",
@@ -94,6 +105,9 @@ def define_liquids(protocol):
             
     for i in range(16):
         alcohols.wells()[i].load_liquid(liquid=alcohols_liquid,volume=300)
+
+    alcohols.rows()[7][1].load_liquid(liquid=water_liquid, volume=300)
+    alcohols.rows()[0][2].load_liquid(liquid=tcep_liquid, volume=300)
     
     enzyme['A1'].load_liquid(liquid=enzyme_liquid,volume=195000)
 
@@ -102,6 +116,8 @@ def pickup_tips(layout, protocol):
         pipette.configure_nozzle_layout(style=protocol_api.COLUMN,start="A12", tip_racks=[tips_columns])   
     elif layout == 'row':
         pipette.configure_nozzle_layout(style=protocol_api.ROW,start="H1",tip_racks=[tips_rows])
+    elif layout == 'single':
+        pipette.configure_nozzle_layout(style=protocol_api.SINGLE,start="A1",tip_racks=[tips_rows])
     elif layout == 'all':
         pipette.configure_nozzle_layout(style=protocol_api.ALL,start="A1",tip_racks=[tips_96_buffer, tips_96_enzyme])
     pipette.pick_up_tip()
@@ -122,7 +138,7 @@ def add_buffer(protocol):
 def add_metals(protocol):
     for i in range(2):
         pickup_tips('row', protocol)
-        destinations = [plate.rows()[row][i] for row in range(16)]
+        destinations = [plate.rows()[row][i] for row in range(15)]
         source = metals.rows()[i][0]
         total_volume = metals_volume * len(destinations) + 20
         pipette.mix(2, 100, source)
@@ -145,6 +161,25 @@ def add_alcohols(protocol):
             pipette.dispense(alcohols_volume, dest.top())
             pipette.touch_tip(location=dest, v_offset=-2, speed=20)
         pipette.drop_tip()
+
+def add_controls(protocol):
+    pickup_tips('single', protocol)
+    water = alcohols.rows()[7][1]
+    tcep = alcohols.rows()[0][2]
+
+    water_dest = [plate.rows()[15][column] for column in range(12)]
+    tcep_dest = [plate.rows()[15][column] for column in range(12, 24)]
+
+    for source, destinations in [(water, water_dest), (tcep, tcep_dest)]:
+        total_volume = (alcohols_volume * len(destinations)) + 20
+        pipette.mix(2, 100, source)
+        pipette.aspirate(total_volume, source.bottom(1))
+        for dest in destinations:
+            pipette.dispense(alcohols_volume, dest.top())
+            pipette.touch_tip(location=dest, v_offset=-2, speed=20)
+
+    pipette.drop_tip()
+
 
 def add_PQQ_ADH(protocol):
     pickup_tips('all', protocol)
