@@ -34,8 +34,9 @@ def run(protocol):
 
 def setup(protocol):
     # Load modules and labware
-    global tips_96, tips_rows, tips_columns, plate, metals, alcohols, enzyme, trash, buff_pqq_dcpip_pms, pipette, temp_module
-    tips_96 = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'B1', adapter='opentrons_flex_96_tiprack_adapter')
+    global tips_96_buffer, tips_96_enzyme, tips_rows, tips_columns, plate, metals, alcohols, enzyme, trash, buff_pqq_dcpip_pms, pipette, temp_module
+    tips_96_buffer = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'B1', adapter='opentrons_flex_96_tiprack_adapter')
+    tips_96_enzyme = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'A1', adapter='opentrons_flex_96_tiprack_adapter')
     tips_rows = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'B3')
     tips_columns = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'D3')
     # Optionally load the temperature module in C1 or use plain labware in C1
@@ -102,7 +103,7 @@ def pickup_tips(layout, protocol):
     elif layout == 'row':
         pipette.configure_nozzle_layout(style=protocol_api.ROW,start="H1",tip_racks=[tips_rows])
     elif layout == 'all':
-        pipette.configure_nozzle_layout(style=protocol_api.ALL,start="A1",tip_racks=[tips_96])
+        pipette.configure_nozzle_layout(style=protocol_api.ALL,start="A1",tip_racks=[tips_96_buffer, tips_96_enzyme])
     pipette.pick_up_tip()
 
 def add_buffer(protocol):
@@ -110,7 +111,7 @@ def add_buffer(protocol):
     destinations = [plate.wells_by_name()[well] for well in ['A1', 'A2', 'B2', 'B1']]
     source = buff_pqq_dcpip_pms.wells_by_name()['A1']
     total_volume = buffer_volume * len(destinations) + 20
-    pipette.mix(2, 100, source)
+    pipette.mix(2, 80, source)
     pipette.aspirate(total_volume, source.bottom(1))
     for dest in destinations:
         pipette.dispense(buffer_volume, dest.bottom(1))
@@ -146,13 +147,11 @@ def add_alcohols(protocol):
         pipette.drop_tip()
 
 def add_PQQ_ADH(protocol):
-    tips_96.reset()
     pickup_tips('all', protocol)
     destination_wells = [plate.wells_by_name()[well] for well in ['A1', 'A2', 'B2', 'B1']]
-    pipette.mix(2, 100, enzyme['A1'])
     source = enzyme['A1']
     total_volume = enzyme_volume * len(destination_wells) + 20
-    pipette.mix(2, 100, source)
+    pipette.mix(2, 140, source)
     pipette.aspirate(total_volume, source.bottom(1))
     for dest in destination_wells:
         pipette.dispense(enzyme_volume, dest.top(z=-3))
