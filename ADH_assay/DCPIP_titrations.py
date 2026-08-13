@@ -30,7 +30,7 @@ def setup(protocol):
 def define_liquids(protocol):
     global dcpip, buffer_wells, buffer_liquid, dcpip_liquid
     buffer_wells = [reservoir.wells_by_name()[well] for well in ['A1', 'A2']] # 150 mM NaCl, 100 mM HEPES
-    buffer_liquid = protocol.define_liquid(name="Buffer",description="150 mM NaCl, 100 mM HEPES",display_color="#ADD8E6")
+    buffer_liquid = protocol.define_liquid(name="Buffer",description="150 mM NaCl, 100 mM HEPES",display_color="#ADD8E6C1")
     dcpip = reservoir.wells_by_name()['A3'] # 500 uM initial concentration of DCPIP (150uM final concentration in 384 well plate)
     dcpip_liquid = protocol.define_liquid(name="DCPIP",description="500 µM DCPIP solution",display_color="#006400")
 
@@ -51,7 +51,7 @@ def pickup_tips(layout, protocol):
     pipette.pick_up_tip()
 
 def add_buffer(protocol):
-    global add_buffer,buffer_wells,buffer_liquid
+    global add_buffer,buffer_wells,buffer_liquid, destination_wells
     rxn_vol = 60
     pickup_tips('column', protocol)
     row_a_wells = plate.rows()[0][1:24]

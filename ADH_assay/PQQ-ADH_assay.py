@@ -50,7 +50,7 @@ def setup(protocol):
     plate = protocol.load_labware('corning_384_wellplate_112ul_flat', 'C2')
     metals = protocol.load_labware('greiner_96_wellplate_323ul', 'D2')
     alcohols = protocol.load_labware('greiner_96_wellplate_323ul', 'C3')
-    enzyme = protocol.load_labware('nest_1_reservoir_195ml', 'B2')
+    enzyme = protocol.load_labware('opentrons_tough_1_reservoir_300ml', 'B2')
     trash = protocol.load_trash_bin ('D1')
     # Load the buffer/PQQ/DCPIP/PMS reservoir either on the temp module or directly in C1
     if temp_module is not None:
@@ -187,7 +187,8 @@ def add_PQQ_ADH(protocol):
     source = enzyme['A1']
     total_volume = enzyme_volume * len(destination_wells) + 20
     pipette.mix(2, 140, source)
-    pipette.aspirate(total_volume, source.bottom(1))
+    pipette.aspirate(total_volume+20, source.bottom(1))
+    pipette.dispense(10, source.top())
     for dest in destination_wells:
         pipette.dispense(enzyme_volume, dest.top(z=-3))
         pipette.touch_tip(dest, v_offset=-1, speed=20)
