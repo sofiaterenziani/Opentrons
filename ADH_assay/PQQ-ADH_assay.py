@@ -186,9 +186,8 @@ def add_PQQ_ADH(protocol):
     destination_wells = [plate.wells_by_name()[well] for well in ['A1', 'A2', 'B2', 'B1']]
     source = enzyme['A1']
     total_volume = enzyme_volume * len(destination_wells) + 20
-    pipette.mix(2, 140, source)
     pipette.aspirate(total_volume+20, source.bottom(1))
-    pipette.dispense(10, source.top())
+    pipette.dispense(10, source())
     for dest in destination_wells:
         pipette.dispense(enzyme_volume, dest.top(z=-3))
         pipette.touch_tip(dest, v_offset=-1, speed=20)
