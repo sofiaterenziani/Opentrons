@@ -177,7 +177,6 @@ def add_controls(protocol):
         for dest in destinations:
             pipette.dispense(alcohols_volume, dest.top())
             pipette.touch_tip(location=dest, v_offset=-2, speed=20)
-
     pipette.drop_tip()
 
 
@@ -187,7 +186,7 @@ def add_PQQ_ADH(protocol):
     source = enzyme['A1']
     total_volume = enzyme_volume * len(destination_wells) + 20
     pipette.aspirate(total_volume+20, source.bottom(1))
-    pipette.dispense(10, source())
+    pipette.dispense(10, source)
     for dest in destination_wells:
         pipette.dispense(enzyme_volume, dest.top(z=-3))
         pipette.touch_tip(dest, v_offset=-1, speed=20)

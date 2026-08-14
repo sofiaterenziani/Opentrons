@@ -51,19 +51,16 @@ def pickup_tips(layout, protocol):
     pipette.pick_up_tip()
 
 def add_buffer(protocol):
-    global add_buffer,buffer_wells,buffer_liquid, destination_wells
     rxn_vol = 60
     pickup_tips('column', protocol)
     row_a_wells = plate.rows()[0][1:24]
     row_b_wells = plate.rows()[1][1:24]
-    destination_wells = row_a_wells + row_b_wells
     pipette.distribute(rxn_vol, buffer_wells[0], row_a_wells,new_tip='never', mix_before=(3, rxn_vol/2),disposal_volume=10)
     pipette.distribute(rxn_vol, buffer_wells[1], row_b_wells,new_tip='never', mix_before=(3, rxn_vol/2),disposal_volume=10)
     pipette.drop_tip()
 
 
 def add_and_titrate_dcpip(protocol):
-    global dcpip
     rxn_vol = 60
     dilution_factor = 6
     num_dilutions = 23
@@ -74,5 +71,8 @@ def add_and_titrate_dcpip(protocol):
     pickup_tips('column', protocol)
     pipette.transfer(rxn_vol + transfer_vol,dcpip, row_a_wells[0], mix_before=(3, rxn_vol/2), new_tip='never',mix_after=(3, rxn_vol/2))
     pipette.transfer(transfer_vol, row_a_wells[0:num_dilutions-1], row_a_wells[1:num_dilutions], new_tip='never', mix_after=(3, rxn_vol/2))
+    pipette.drop_tip()
+    pickup_tips('column', protocol)
     pipette.transfer(rxn_vol + transfer_vol,dcpip, row_b_wells[0],mix_before=(3, rxn_vol/2),new_tip='never',mix_after=(3, rxn_vol/2))
     pipette.transfer(transfer_vol,row_b_wells[0:num_dilutions-1],row_b_wells[1:num_dilutions],new_tip='never',mix_after=(3, rxn_vol/2))
+    pipette.drop_tip()
