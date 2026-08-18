@@ -5,7 +5,7 @@ from opentrons.types import Point
 metadata = {
     'protocolName': 'DCPIP Standard Curve for Extinction Coefficient',
     'author': 'Sofia Terenziani',
-    'description': 'This protocol performs a 1:6 DCPIP serial dilution to create a standard curve and determine the extinction coefficient of DCPIP.'
+    'description': 'This protocol performs a 40/60 DCPIP serial dilution to create a standard curve and determine the extinction coefficient of DCPIP. The plate will be run at 3 different pHs (6,7,8)'
 }
 
 requirements = {'robotType': 'Flex','apiLevel': '2.29'}
@@ -20,59 +20,140 @@ def run (protocol):
 
 def setup(protocol):
     # Load labware
-    global tips_1000, plate, reservoir, pipette, trash
-    tips_1000 = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'B2')
+    global tips_1000, plate, buffer, pipette, trash, dcpip
+    tips_1000 = protocol.load_labware('opentrons_flex_96_tiprack_1000ul', 'B1')
     plate = protocol.load_labware('corning_384_wellplate_112ul_flat', 'C2')
-    reservoir= protocol.load_labware('nest_12_reservoir_15ml', 'C3')
+    buffer= protocol.load_labware('nest_12_reservoir_15ml', 'C3')
     pipette = protocol.load_instrument('flex_96channel_1000', 'right', tip_racks=[tips_1000])
+    dcpip = protocol.load_labware('greiner_96_wellplate_323ul', 'B3')
     trash = protocol.load_trash_bin ('D1')
 
 def define_liquids(protocol):
-    global dcpip, buffer_wells, buffer_liquid, dcpip_liquid
-    buffer_wells = [reservoir.wells_by_name()[well] for well in ['A1', 'A2']] # 150 mM NaCl, 100 mM HEPES
-    buffer_liquid = protocol.define_liquid(name="Buffer",description="150 mM NaCl, 100 mM HEPES",display_color="#ADD8E6C1")
-    dcpip = reservoir.wells_by_name()['A3'] # 500 uM initial concentration of DCPIP (150uM final concentration in 384 well plate)
-    dcpip_liquid = protocol.define_liquid(name="DCPIP",description="500 µM DCPIP solution",display_color="#006400")
+    global dcpip, buffer_wells, dcpip_liquid
+    buffer_wells = [buffer.wells_by_name()[f'A{i}'] for i in range(1, 13)] # Wells 1,2,3,4 pH6 - wells 5,6,7,8 pH7 - wells 9,10,11,12 pH8
 
-    for well in buffer_wells:
-        well.load_liquid(liquid=buffer_liquid, volume=15000)
-    for well in [dcpip]:
+    buffer_liquid_light = protocol.define_liquid(
+        name="Buffer pH6",
+        description="150 mM NaCl, 100 mM HEPES, pH 6",
+        display_color="#ADD8E6")
+    buffer_liquid_medium = protocol.define_liquid(
+        name="Buffer pH7",
+        description="150 mM NaCl, 100 mM HEPES, pH 7",
+        display_color="#6495ED")
+    buffer_liquid_dark = protocol.define_liquid(
+        name="Buffer pH8",
+        description="150 mM NaCl, 100 mM HEPES, pH 8",
+        display_color="#00008B")
+    
+    dcpip = dcpip.rows()[0] # 500 uM initial concentration of DCPIP (150uM concentration in 384 well plate rxns)
+    dcpip_liquid = protocol.define_liquid(
+        name="DCPIP",
+        description="500 µM DCPIP solution",
+        display_color="#006400")
+
+    for well in buffer_wells[0:4]:
+        well.load_liquid(liquid=buffer_liquid_light, volume=15000)
+ 
+    for well in buffer_wells[4:8]:
+        well.load_liquid(liquid=buffer_liquid_medium, volume=15000)
+ 
+    for well in buffer_wells[8:12]:
+        well.load_liquid(liquid=buffer_liquid_dark, volume=15000)
+
+    for well in dcpip:
         well.load_liquid(liquid=dcpip_liquid, volume=10000)
 
 def pickup_tips(layout, protocol):
     if layout == 'column':
         pipette.configure_nozzle_layout(style=protocol_api.COLUMN,start="A12", tip_racks=[tips_1000])
     elif layout == 'row':
-            pipette.configure_nozzle_layout(style=protocol_api.ROW,start="H1",tip_racks=[tips_1000])
+        pipette.configure_nozzle_layout(style=protocol_api.ROW,start="H1",tip_racks=[tips_1000])
     elif layout == 'single':
-            pipette.configure_nozzle_layout(style=protocol_api.SINGLE,start="A1",tip_racks=[tips_1000])
+        pipette.configure_nozzle_layout(style=protocol_api.SINGLE,start="A1",tip_racks=[tips_1000])
     elif layout == 'all':
-            pipette.configure_nozzle_layout(style=protocol_api.ALL,start="A1",tip_racks=[tips_1000])
+        pipette.configure_nozzle_layout(style=protocol_api.ALL,start="A1",tip_racks=[tips_1000])
     pipette.pick_up_tip()
 
 def add_buffer(protocol):
     rxn_vol = 60
-    pickup_tips('column', protocol)
-    row_a_wells = plate.rows()[0][1:24]
-    row_b_wells = plate.rows()[1][1:24]
-    pipette.distribute(rxn_vol, buffer_wells[0], row_a_wells,new_tip='never', mix_before=(3, rxn_vol/2),disposal_volume=10)
-    pipette.distribute(rxn_vol, buffer_wells[1], row_b_wells,new_tip='never', mix_before=(3, rxn_vol/2),disposal_volume=10)
-    pipette.drop_tip()
+    odd_column_indices = list(range(1, 24, 2))
+    even_column_indices = list(range(0, 24, 2))
 
+    for col_idx in odd_column_indices:
+        pickup_tips('row', protocol)
+        col = plate.columns()[col_idx]
+        buffer_source = buffer_wells[col_idx % len(buffer_wells)]
+        col_wells = col[1:16]
+        pipette.distribute(
+            rxn_vol, 
+            buffer_source, 
+            col_wells, 
+            new_tip='never', 
+            mix_before=(3, rxn_vol/2), 
+            disposal_volume=10)
+        pipette.drop_tip()
 
+    for col_idx in even_column_indices:
+        pickup_tips('row', protocol)
+        col = plate.columns()[col_idx]
+        buffer_source = buffer_wells[col_idx % len(buffer_wells)]
+        col_wells = col[1:16]
+        pipette.distribute(
+            rxn_vol, 
+            buffer_source, 
+            col_wells, 
+            new_tip='never', 
+            mix_before=(3, rxn_vol/2), 
+            disposal_volume=10)
+        pipette.drop_tip()
+ 
+ 
 def add_and_titrate_dcpip(protocol):
     rxn_vol = 60
     dilution_factor = 6
-    num_dilutions = 23
+    num_dilutions = 15 
     transfer_vol = rxn_vol / dilution_factor
-    row_a_wells = plate.rows()[0][0:24] 
-    row_b_wells = plate.rows()[1][0:24]
+  
+    plate_even_columns = [plate.columns()[i] for i in range(0, 24, 2)]
+    plate_odd_columns = [plate.columns()[i] for i in range(1, 24, 2)]  
+
+    pickup_tips('row', protocol)
+    for col in plate_even_columns:
+        col_wells = col[0:16] 
+        
+        pipette.transfer(
+            rxn_vol + transfer_vol, 
+            dcpip, 
+            col_wells[0], 
+            mix_before=(3, rxn_vol/2), 
+            new_tip='never', 
+            mix_after=(3, rxn_vol/2))
     
-    pickup_tips('column', protocol)
-    pipette.transfer(rxn_vol + transfer_vol,dcpip, row_a_wells[0], mix_before=(3, rxn_vol/2), new_tip='never',mix_after=(3, rxn_vol/2))
-    pipette.transfer(transfer_vol, row_a_wells[0:num_dilutions-1], row_a_wells[1:num_dilutions], new_tip='never', mix_after=(3, rxn_vol/2))
+        pipette.transfer(
+            transfer_vol, 
+            col_wells[0:num_dilutions], 
+            col_wells[1:num_dilutions+1], 
+            new_tip='never', 
+            mix_after=(3, rxn_vol/2)
+        )
     pipette.drop_tip()
-    pickup_tips('column', protocol)
-    pipette.transfer(rxn_vol + transfer_vol,dcpip, row_b_wells[0],mix_before=(3, rxn_vol/2),new_tip='never',mix_after=(3, rxn_vol/2))
-    pipette.transfer(transfer_vol,row_b_wells[0:num_dilutions-1],row_b_wells[1:num_dilutions],new_tip='never',mix_after=(3, rxn_vol/2))
+    
+    pickup_tips('row', protocol)
+    for col in plate_odd_columns:
+        col_wells = col[0:16]
+        pipette.transfer(
+            rxn_vol + transfer_vol, 
+            dcpip, 
+            col_wells[0], 
+            mix_before=(3, rxn_vol/2), 
+            new_tip='never', 
+            mix_after=(3, rxn_vol/2)
+        )
+        pipette.transfer(
+            transfer_vol, 
+            col_wells[0:num_dilutions], 
+            col_wells[1:num_dilutions+1], 
+            new_tip='never', 
+            mix_after=(3, rxn_vol/2)
+        )
     pipette.drop_tip()

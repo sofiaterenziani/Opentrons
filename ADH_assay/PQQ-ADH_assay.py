@@ -164,7 +164,7 @@ def add_alcohols(protocol):
 
 def add_controls(protocol):
     pickup_tips('single', protocol)
-    water = alcohols.rows()[7][1]
+    water = alcohols.rows()[7][2]
     tcep = alcohols.rows()[0][2]
 
     water_dest = [plate.rows()[15][column] for column in range(12)]
