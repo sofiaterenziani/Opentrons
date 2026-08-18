@@ -177,6 +177,7 @@ def add_controls(protocol):
         for dest in destinations:
             pipette.dispense(alcohols_volume, dest.top())
             pipette.touch_tip(location=dest, v_offset=-2, speed=20)
+            pipette.blow_out(source.top())
     pipette.drop_tip()
 
 
