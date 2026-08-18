@@ -107,6 +107,7 @@ def define_liquids(protocol):
         alcohols.wells()[i].load_liquid(liquid=alcohols_liquid,volume=300)
 
     alcohols.rows()[7][1].load_liquid(liquid=water_liquid, volume=300)
+    alcohols.rows()[7][2].load_liquid(liquid=water_liquid, volume=300)
     alcohols.rows()[0][2].load_liquid(liquid=tcep_liquid, volume=300)
     
     enzyme['A1'].load_liquid(liquid=enzyme_liquid,volume=195000)
@@ -177,7 +178,7 @@ def add_controls(protocol):
         for dest in destinations:
             pipette.dispense(alcohols_volume, dest.top())
             pipette.touch_tip(location=dest, v_offset=-2, speed=20)
-            pipette.blow_out(source.top())
+        pipette.blow_out(source.top())
     pipette.drop_tip()
 
 
