@@ -1,6 +1,11 @@
 from opentrons import protocol_api
-from opentrons.protocol_api import COLUMN, ROW, SINGLE, ALL
+from opentrons.protocol_api import ALL, PARTIAL_COLUMN, SINGLE
 from opentrons.types import Point
+import time
+import sys
+import math
+import random
+import subprocess
 
 metadata = {
     'protocolName': 'DCPIP Standard Curve for Extinction Coefficient',
@@ -75,38 +80,13 @@ def pickup_tips(layout, protocol):
     pipette.pick_up_tip()
 
 def add_buffer(protocol):
-    rxn_vol = 60
-    odd_column_indices = list(range(1, 24, 2))
-    even_column_indices = list(range(0, 24, 2))
-
-    for col_idx in odd_column_indices:
+    for col_idx in range(2):
         pickup_tips('row', protocol)
         col = plate.columns()[col_idx]
         buffer_source = buffer_wells[col_idx % len(buffer_wells)]
         col_wells = col[1:16]
-        pipette.distribute(
-            rxn_vol, 
-            buffer_source, 
-            col_wells, 
-            new_tip='never', 
-            mix_before=(3, rxn_vol/2), 
-            disposal_volume=10)
-        pipette.drop_tip()
-
-    for col_idx in even_column_indices:
-        pickup_tips('row', protocol)
-        col = plate.columns()[col_idx]
-        buffer_source = buffer_wells[col_idx % len(buffer_wells)]
-        col_wells = col[1:16]
-        pipette.distribute(
-            rxn_vol, 
-            buffer_source, 
-            col_wells, 
-            new_tip='never', 
-            mix_before=(3, rxn_vol/2), 
-            disposal_volume=10)
-        pipette.drop_tip()
- 
+        pipette.distribute(60, buffer_source, col_wells, new_tip='never', mix_before=(3, rxn_vol/2), disposal_volume=10)
+        pipette.drop_tip() 
  
 def add_and_titrate_dcpip(protocol):
     rxn_vol = 60
@@ -114,17 +94,17 @@ def add_and_titrate_dcpip(protocol):
     num_dilutions = 15 
     transfer_vol = rxn_vol / dilution_factor
   
-    plate_even_columns = [plate.columns()[i] for i in range(0, 24, 2)]
-    plate_odd_columns = [plate.columns()[i] for i in range(1, 24, 2)]  
+    plate_even_columns = [plate.columns()[i] for i in range(0)]
+    plate_odd_columns = [plate.columns()[i] for i in range(1)]  
 
     pickup_tips('row', protocol)
     for col in plate_even_columns:
-        col_wells = col[0:16] 
+        col_wells = col[0:15] 
         
         pipette.transfer(
             rxn_vol + transfer_vol, 
             dcpip, 
-            col_wells[0], 
+            col_wells, 
             mix_before=(3, rxn_vol/2), 
             new_tip='never', 
             mix_after=(3, rxn_vol/2))
@@ -144,7 +124,7 @@ def add_and_titrate_dcpip(protocol):
         pipette.transfer(
             rxn_vol + transfer_vol, 
             dcpip, 
-            col_wells[0], 
+            col_wells, 
             mix_before=(3, rxn_vol/2), 
             new_tip='never', 
             mix_after=(3, rxn_vol/2)
