@@ -85,55 +85,14 @@ def add_buffer(protocol):
         col = plate.columns()[col_idx]
         buffer_source = buffer_wells[col_idx % len(buffer_wells)]
         col_wells = col[1:16]
-        pipette.distribute(60, buffer_source, col_wells, new_tip='never', mix_before=(3, rxn_vol/2), disposal_volume=10)
+        pipette.distribute(60, buffer_source, col_wells, new_tip='never', mix_before=(3,30), disposal_volume=10)
         pipette.drop_tip() 
  
 def add_and_titrate_dcpip(protocol):
-    rxn_vol = 60
-    dilution_factor = 6
-    num_dilutions = 15 
-    transfer_vol = rxn_vol / dilution_factor
-  
-    plate_even_columns = [plate.columns()[i] for i in range(0)]
-    plate_odd_columns = [plate.columns()[i] for i in range(1)]  
-
-    pickup_tips('row', protocol)
-    for col in plate_even_columns:
-        col_wells = col[0:15] 
-        
-        pipette.transfer(
-            rxn_vol + transfer_vol, 
-            dcpip, 
-            col_wells, 
-            mix_before=(3, rxn_vol/2), 
-            new_tip='never', 
-            mix_after=(3, rxn_vol/2))
-    
-        pipette.transfer(
-            transfer_vol, 
-            col_wells[0:num_dilutions], 
-            col_wells[1:num_dilutions+1], 
-            new_tip='never', 
-            mix_after=(3, rxn_vol/2)
-        )
-    pipette.drop_tip()
-    
-    pickup_tips('row', protocol)
-    for col in plate_odd_columns:
-        col_wells = col[0:16]
-        pipette.transfer(
-            rxn_vol + transfer_vol, 
-            dcpip, 
-            col_wells, 
-            mix_before=(3, rxn_vol/2), 
-            new_tip='never', 
-            mix_after=(3, rxn_vol/2)
-        )
-        pipette.transfer(
-            transfer_vol, 
-            col_wells[0:num_dilutions], 
-            col_wells[1:num_dilutions+1], 
-            new_tip='never', 
-            mix_after=(3, rxn_vol/2)
-        )
-    pipette.drop_tip()
+    for col_idx in range(2):
+        pickup_tips('row', protocol)
+        col = plate.columns()[col_idx]
+        col_wells = col[0:15]
+        pipette.distribute(20, dcpip, col_wells, new_tip='never', mix_after=(3,40), disposal_volume=40)
+        pipette.aspirate(20, plate.rows()[15][0])
+        pipette.drop_tip()
