@@ -89,10 +89,17 @@ def add_buffer(protocol):
         pipette.drop_tip() 
  
 def add_and_titrate_dcpip(protocol):
+    pickup_tips('row', protocol)
+    pipette.aspirate(110,dcpip)
+    pipette.dispense(100, plate.rows()[0])
+    pipette.drop_tip()
+
     for col_idx in range(2):
         pickup_tips('row', protocol)
         col = plate.columns()[col_idx]
         col_wells = col[0:15]
-        pipette.distribute(20, dcpip, col_wells, new_tip='never', mix_after=(3,40), disposal_volume=40)
+        pipette.distribute(40, dcpip, col_wells, new_tip='never', mix=(3,40), disposal_volume=40)
         pipette.aspirate(20, plate.rows()[15][0])
         pipette.drop_tip()
+
+    pickup_tips('row', protocol)
