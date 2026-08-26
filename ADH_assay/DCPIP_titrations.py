@@ -35,22 +35,22 @@ def setup(protocol):
 
 def define_liquids(protocol):
     global dcpip, buffer_wells, dcpip_liquid
-    buffer_wells = [buffer.wells_by_name()[f'A{i}'] for i in range(1, 13)] # Wells 1,2,3,4 pH6 - wells 5,6,7,8 pH7 - wells 9,10,11,12 pH8
+    buffer_wells = [buffer.wells_by_name()[f'A{i}'] for i in range(1,13)] # Wells 1,2,3,4 pH6 - wells 5,6,7,8 pH7 - wells 9,10,11,12 pH8
 
     buffer_liquid_light = protocol.define_liquid(
         name="Buffer pH6",
-        description="150 mM NaCl, 100 mM HEPES, pH 6",
+        description="150 uM NaCl, 100 mM HEPES, pH 6",
         display_color="#ADD8E6")
     buffer_liquid_medium = protocol.define_liquid(
         name="Buffer pH7",
-        description="150 mM NaCl, 100 mM HEPES, pH 7",
+        description="150 uM NaCl, 100 mM HEPES, pH 7",
         display_color="#6495ED")
     buffer_liquid_dark = protocol.define_liquid(
         name="Buffer pH8",
-        description="150 mM NaCl, 100 mM HEPES, pH 8",
+        description="150 uM NaCl, 100 mM HEPES, pH 8",
         display_color="#00008B")
     
-    dcpip = dcpip.rows()[0] # 500 uM initial concentration of DCPIP (150uM concentration in 384 well plate rxns)
+    dcpip = dcpip.rows()[0] #(150uM concentration in 384 well plate rxns)
     dcpip_liquid = protocol.define_liquid(
         name="DCPIP",
         description="500 µM DCPIP solution",
@@ -83,14 +83,13 @@ def add_buffer(protocol):
     for col_idx in range(2):
         pickup_tips('row', protocol)
         col = plate.columns()[col_idx]
-        buffer_source = buffer_wells[col_idx % len(buffer_wells)]
         col_wells = col[1:16]
-        pipette.distribute(60, buffer_source, col_wells, new_tip='never', mix_before=(3,30), disposal_volume=10)
+        pipette.distribute(60, buffer_wells[0], col_wells, new_tip='never', mix_before=(3,30), disposal_volume=10)
         pipette.drop_tip() 
  
 def add_and_titrate_dcpip(protocol):
     pickup_tips('row', protocol)
-    pipette.transfer(100, dcpip[0], plate.wells_by_name()['A1'], new_tip='never')
+    pipette.transfer(100, dcpip[0], plate.wells_by_name()['A1'], new_tip='never', disposal_volume=10)
     pipette.transfer(100, dcpip[0], plate.wells_by_name()['A2'], new_tip='never')
     pipette.drop_tip()
 
@@ -98,6 +97,6 @@ def add_and_titrate_dcpip(protocol):
         pickup_tips('row', protocol)
         rows_wells = [row[col_idx] for row in plate.rows()[0:15]]
         pipette.transfer(40,rows_wells[:14],rows_wells[1:15],new_tip='never',mix_after=(3, 40))
-        pipette.aspirate(40, plate.rows()[15][col_idx])
+        pipette.aspirate(40, plate.rows()[14][col_idx])
         pipette.dispense(40, trash)
         pipette.drop_tip()
