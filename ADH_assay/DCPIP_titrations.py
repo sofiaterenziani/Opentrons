@@ -10,7 +10,7 @@ import subprocess
 metadata = {
     'protocolName': 'DCPIP Standard Curve for Extinction Coefficient',
     'author': 'Sofia Terenziani',
-    'description': 'This protocol performs a 40/60 DCPIP serial dilution to create a standard curve and determine the extinction coefficient of DCPIP. The plate will be run at 3 different pHs (6,7,8)'
+    'description': 'This protocol performs a 30/90 DCPIP serial dilution to create a standard curve and determine the extinction coefficient of DCPIP. The plate will be run at 3 different pHs (6,7,8)'
 }
 
 requirements = {'robotType': 'Flex','apiLevel': '2.29'}
@@ -89,14 +89,14 @@ def add_buffer(protocol):
  
 def add_and_titrate_dcpip(protocol):
     pickup_tips('row', protocol)
-    pipette.transfer(100, dcpip[0], plate.wells_by_name()['A1'], new_tip='never', disposal_volume=10)
-    pipette.transfer(100, dcpip[0], plate.wells_by_name()['A2'], new_tip='never')
+    pipette.transfer(90, dcpip[0], plate.wells_by_name()['A1'], new_tip='never', disposal_volume=10)
+    pipette.transfer(90, dcpip[0], plate.wells_by_name()['A2'], new_tip='never')
     pipette.drop_tip()
 
     for col_idx in range(2):
         pickup_tips('row', protocol)
         rows_wells = [row[col_idx] for row in plate.rows()[0:15]]
-        pipette.transfer(40,rows_wells[:14],rows_wells[1:15],new_tip='never',mix_after=(3, 40))
-        pipette.aspirate(40, plate.rows()[14][col_idx])
-        pipette.dispense(40, trash)
+        pipette.transfer(30,rows_wells[:14],rows_wells[1:15],new_tip='never',mix_after=(3, 30))
+        pipette.aspirate(30, plate.rows()[14][col_idx])
+        pipette.dispense(30, trash)
         pipette.drop_tip()
