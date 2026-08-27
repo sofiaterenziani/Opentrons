@@ -174,7 +174,6 @@ def make_figure(data: pd.DataFrame, output_path: str) -> None:
     concentrations = compute_dcpip_concentrations(PLATE_ROWS)  # µM, length 16
 
     # Only plot the rows where there is meaningful signal (first N_SIGNAL rows)
-    # Row 9+ have concentrations below ~0.08 µM where absorbance is near zero/noise.
     N_SIGNAL = 8
     conc_plot = concentrations[:N_SIGNAL]
 
@@ -183,48 +182,51 @@ def make_figure(data: pd.DataFrame, output_path: str) -> None:
 
     for ax, (section_name, (col_start, col_end)) in zip(axes, SECTIONS.items()):
         mean_abs, std_abs = section_stats(data, col_start, col_end)
-        # Restrict to signal rows
         mean_plot = mean_abs[:N_SIGNAL]
         std_plot = std_abs[:N_SIGNAL]
         color = SECTION_COLORS[section_name]
         marker = SECTION_MARKERS[section_name]
 
-        # Per-replicate (per-column) traces, semi-transparent
+        # Per-replicate traces, semi-transparent
         for col_idx in range(col_start, col_end):
             ax.plot(conc_plot, data.iloc[:N_SIGNAL, col_idx].values,
                     color=color, alpha=0.15, linewidth=0.8)
 
-        # Mean ± SD error bars — include actual mean of first row in label
-        mean_max = mean_plot[0]
+        # Mean ± SD error bars
+        mean_at_500 = mean_plot[0]
         ax.errorbar(conc_plot, mean_plot, yerr=std_plot,
                     marker=marker, color=color, linewidth=1.8, markersize=6,
                     capsize=3,
-                    label=f"Mean $\\pm$ SD  (n={col_end - col_start})\n"
-                          f"Mean (500 $\\mu$M) = {mean_max:.4f} AU")
+                    label=f"Mean $\\pm$ SD  (n={col_end - col_start})")
+        # Show mean at max concentration as a separate legend entry
+        ax.plot([], [], " ", label=f"Mean at 500 $\\mu$M = {mean_at_500:.4f} AU")
 
         # Linear regression across all signal points
         slope, intercept, r_value, p_value, _ = linregress(conc_plot, mean_plot)
         x_fit = np.linspace(conc_plot[-1], conc_plot[0], 200)
         y_fit = slope * x_fit + intercept
-        # slope is AU/µM; ×10⁶ → M⁻¹cm⁻¹ (Beer–Lambert, 1 cm path length)
-        epsilon = slope * 1e6
+        epsilon = slope * 1e6  # AU/µM × 10⁶ → M⁻¹cm⁻¹
+        # Each parameter gets its own legend entry so values always render
         ax.plot(x_fit, y_fit, "--", color="black", linewidth=1.4, alpha=0.85,
-                label=f"Linear fit\n"
-                      f"$R^2$ = {r_value**2:.4f}\n"
-                      f"$\\varepsilon$ = {epsilon:.0f} $M^{{-1}}cm^{{-1}}$")
+                label=f"Linear fit  $R^2$ = {r_value**2:.4f}")
+        ax.plot([], [], " ",
+                label=f"$\\varepsilon$ = {epsilon:.0f} $M^{{-1}}cm^{{-1}}$")
 
         ax.set_xscale("log")
         ax.set_xlabel("[DCPIP] ($\\mu$M)", fontsize=11)
         ax.set_ylabel("Absorbance (a.u.)", fontsize=11)
         ax.set_title(section_name, fontsize=12)
 
-        # X-axis: tight around the plotted concentration range only
+        # X-axis: show only the plotted concentration range
         ax.set_xlim(conc_plot[-1] * 0.6, conc_plot[0] * 2.0)
         ax.xaxis.set_major_locator(ticker.LogLocator(base=10, numticks=6))
         ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:.3g}"))
         ax.xaxis.set_minor_locator(ticker.LogLocator(base=10, subs=np.arange(2, 10) * 0.1))
         ax.xaxis.set_minor_formatter(ticker.NullFormatter())
         ax.tick_params(axis="x", which="major", rotation=30)
+
+        # Y-axis: 0 to 2 absorbance units
+        ax.set_ylim(bottom=0, top=2)
 
         ax.legend(fontsize=8, loc="upper left",
                   framealpha=0.85, edgecolor="gray", borderpad=0.7)
@@ -233,7 +235,7 @@ def make_figure(data: pd.DataFrame, output_path: str) -> None:
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     print(f"Figure saved -> {output_path}")
-    plt.close(fig)
+    plt.show()
 
 
 # ---------------------------------------------------------------------------
@@ -268,12 +270,15 @@ def make_overlay_figure(data: pd.DataFrame, output_path: str) -> None:
     ax.xaxis.set_minor_formatter(ticker.NullFormatter())
     ax.tick_params(axis="x", which="major", rotation=30)
 
+    # Y-axis: 0 to 2 absorbance units
+    ax.set_ylim(bottom=0, top=2)
+
     ax.legend(fontsize=10, framealpha=0.85, edgecolor="gray")
     ax.grid(True, which="both", linestyle="--", alpha=0.4)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    print(f"Overlay figure saved → {output_path}")
+    print(f"Overlay figure saved -> {output_path}")
     plt.show()
 
 
