@@ -50,6 +50,9 @@ DILUTION_FACTOR = TRANSFER_VOL_uL / (TRANSFER_VOL_uL + DEST_VOL_uL)  # = 1/3
 
 PATH_LENGTH_CM = 0.55  # optical path length of 384-well plate (≈5.5 mm at 60 µL)
 
+# Minimum concentration to include in plots (rows below this threshold are excluded)
+MIN_CONC_uM = 0.1
+
 SECTIONS = {
     "MES pH 6":   (0, 8),   # columns 0-7  (0-indexed)
     "HEPES pH 7": (8, 16),  # columns 8-15
@@ -175,23 +178,23 @@ def section_stats(data: pd.DataFrame, col_start: int, col_end: int):
 def make_figure(data: pd.DataFrame, output_path: str) -> None:
     concentrations = compute_dcpip_concentrations(PLATE_ROWS)  # µM, length 16
 
-    # Only plot the rows where there is meaningful signal (first N_SIGNAL rows)
-    N_SIGNAL = 8
-    conc_plot = concentrations[:N_SIGNAL]
+    # Keep only rows where concentration is at or above MIN_CONC_uM
+    signal_mask = concentrations >= MIN_CONC_uM
+    conc_plot = concentrations[signal_mask]
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 5), sharey=False)
     fig.suptitle("DCPIP Titration Curves — 384-Well Plate", fontsize=14, fontweight="bold")
 
     for ax, (section_name, (col_start, col_end)) in zip(axes, SECTIONS.items()):
         mean_abs, std_abs = section_stats(data, col_start, col_end)
-        mean_plot = mean_abs[:N_SIGNAL]
-        std_plot = std_abs[:N_SIGNAL]
+        mean_plot = mean_abs[signal_mask]
+        std_plot = std_abs[signal_mask]
         color = SECTION_COLORS[section_name]
         marker = SECTION_MARKERS[section_name]
 
         # Per-replicate traces, semi-transparent
         for col_idx in range(col_start, col_end):
-            ax.plot(conc_plot, data.iloc[:N_SIGNAL, col_idx].values,
+            ax.plot(conc_plot, data.iloc[signal_mask, col_idx].values,
                     color=color, alpha=0.15, linewidth=0.8)
 
         # Mean ± SD error bars
@@ -247,8 +250,8 @@ def make_figure(data: pd.DataFrame, output_path: str) -> None:
 def make_overlay_figure(data: pd.DataFrame, output_path: str) -> None:
     concentrations = compute_dcpip_concentrations(PLATE_ROWS)
 
-    N_SIGNAL = 8
-    conc_plot = concentrations[:N_SIGNAL]
+    signal_mask = concentrations >= MIN_CONC_uM
+    conc_plot = concentrations[signal_mask]
 
     fig, ax = plt.subplots(figsize=(8, 5))
     fig.suptitle("DCPIP Titration — All pH Conditions", fontsize=13, fontweight="bold")
@@ -257,7 +260,7 @@ def make_overlay_figure(data: pd.DataFrame, output_path: str) -> None:
         mean_abs, std_abs = section_stats(data, col_start, col_end)
         color = SECTION_COLORS[section_name]
         marker = SECTION_MARKERS[section_name]
-        ax.errorbar(conc_plot, mean_abs[:N_SIGNAL], yerr=std_abs[:N_SIGNAL],
+        ax.errorbar(conc_plot, mean_abs[signal_mask], yerr=std_abs[signal_mask],
                     marker=marker, color=color, linewidth=2, markersize=7,
                     capsize=3, label=section_name)
 
