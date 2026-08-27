@@ -4,8 +4,8 @@
 
 This repository includes two Opentrons Flex protocols:
 
-- `/home/runner/work/Opentrons/Opentrons/ADH_assay/PQQ-ADH_assay.py`
-- `/home/runner/work/Opentrons/Opentrons/ADH_assay/DCPIP_titrations.py`
+- `ADH_assay/PQQ-ADH_assay.py`
+- `ADH_assay/DCPIP_titrations.py`
 
 ### Run on the robot (Opentrons App)
 
@@ -17,7 +17,7 @@ This repository includes two Opentrons Flex protocols:
 
 ### Optional: simulate before running
 
-From the repository root (`/home/runner/work/Opentrons/Opentrons`):
+From the repository root:
 
 ```bash
 opentrons_simulate ADH_assay/PQQ-ADH_assay.py
