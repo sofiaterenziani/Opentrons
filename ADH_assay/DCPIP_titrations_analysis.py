@@ -81,48 +81,83 @@ def compute_dcpip_concentrations(n_steps: int) -> np.ndarray:
     return INITIAL_DCPIP_uM * (DILUTION_FACTOR ** steps)
 
 
+def _find_data_block(sheet_df: pd.DataFrame) -> pd.DataFrame | None:
+    """Scan a raw sheet DataFrame for a PLATE_ROWS × PLATE_COLS numeric block.
+
+    The algorithm:
+    1. Convert all cells to numeric (non-numeric → NaN).
+    2. Mark each cell as "data" if it is not NaN.
+    3. Slide a PLATE_ROWS-row window and a PLATE_COLS-column window over the
+       entire sheet; record the fill fraction for every window position.
+    4. Return the window with the highest fill fraction, provided it exceeds
+       FILL_THRESHOLD.  Using the best fill (rather than the first passing
+       window) ensures that pure-data windows are preferred over windows that
+       accidentally include a row-label column.
+
+    Returns the extracted DataFrame (PLATE_ROWS × PLATE_COLS) or None.
+    """
+    FILL_THRESHOLD = 0.70  # at least 70 % of cells must be numeric
+
+    numeric = sheet_df.apply(pd.to_numeric, errors="coerce")
+    is_data = numeric.notna().values  # numpy bool array for speed
+
+    n_rows, n_cols = numeric.shape
+    if n_rows < PLATE_ROWS or n_cols < PLATE_COLS:
+        return None
+
+    best_fill = 0.0
+    best_pos = None
+    for row_start in range(n_rows - PLATE_ROWS + 1):
+        row_end = row_start + PLATE_ROWS
+        for col_start in range(n_cols - PLATE_COLS + 1):
+            col_end = col_start + PLATE_COLS
+            fill = is_data[row_start:row_end, col_start:col_end].mean()
+            if fill > best_fill:
+                best_fill = fill
+                best_pos = (row_start, row_end, col_start, col_end)
+
+    if best_fill < FILL_THRESHOLD or best_pos is None:
+        return None
+
+    row_start, row_end, col_start, col_end = best_pos
+    block = numeric.iloc[row_start:row_end, col_start:col_end].copy()
+    block.columns = range(PLATE_COLS)
+    block.index = list("ABCDEFGHIJKLMNOP")
+    return block
+
+
 def load_plate_data(filepath: str) -> pd.DataFrame:
     """Load the Excel plate-reader file and return a (16 × 24) DataFrame.
 
-    The function is tolerant of:
-    * A leading row-label column (e.g. 'A', 'B', …)
-    * A single header row with column numbers or names
-    * Extra blank rows / columns
+    Searches every sheet in the workbook for a PLATE_ROWS × PLATE_COLS block
+    of numeric data.  Tolerates arbitrary numbers of metadata rows/columns,
+    header rows, row-label columns, and blank spacer regions that are common
+    in plate-reader exports (Tecan, BMG Labtech, etc.).
     """
     path = Path(filepath)
     if not path.exists():
         sys.exit(f"Error: file not found — {filepath}")
 
-    raw = pd.read_excel(filepath, header=None)
+    xl = pd.ExcelFile(filepath)
+    print(f"Sheets found: {xl.sheet_names}")
 
-    # Drop fully-empty rows and columns
-    raw = raw.dropna(how="all", axis=0).dropna(how="all", axis=1).reset_index(drop=True)
+    for sheet_name in xl.sheet_names:
+        raw = xl.parse(sheet_name, header=None)
+        print(f"  Sheet '{sheet_name}': {raw.shape[0]} rows × {raw.shape[1]} cols (raw)")
+        block = _find_data_block(raw)
+        if block is not None:
+            print(f"  → Data block found in sheet '{sheet_name}'")
+            return block
 
-    # Attempt to detect a header row: skip if the majority of values are non-numeric
-    first_row = raw.iloc[0]
-    numeric_mask = pd.to_numeric(first_row, errors="coerce").notna()
-    if numeric_mask.sum() < len(first_row) / 2:
-        raw = raw.iloc[1:].reset_index(drop=True)
-
-    # Attempt to detect a row-label column: skip if the majority of values are non-numeric
-    first_col = raw.iloc[:, 0]
-    numeric_mask_col = pd.to_numeric(first_col, errors="coerce").notna()
-    if numeric_mask_col.sum() < len(first_col) / 2:
-        raw = raw.iloc[:, 1:].reset_index(drop=True)
-
-    # Convert to numeric
-    data = raw.apply(pd.to_numeric, errors="coerce")
-
-    if data.shape[0] < PLATE_ROWS or data.shape[1] < PLATE_COLS:
-        sys.exit(
-            f"Error: expected at least {PLATE_ROWS} rows × {PLATE_COLS} columns "
-            f"of numeric data, but found {data.shape[0]} × {data.shape[1]}."
-        )
-
-    data = data.iloc[:PLATE_ROWS, :PLATE_COLS]
-    data.columns = range(PLATE_COLS)
-    data.index = list("ABCDEFGHIJKLMNOP")
-    return data
+    # If no block found, print the first sheet contents for diagnosis and exit.
+    raw = xl.parse(xl.sheet_names[0], header=None)
+    print("\n--- First 20 rows of sheet 1 (for diagnosis) ---")
+    print(raw.iloc[:20].to_string())
+    sys.exit(
+        f"\nError: could not locate a {PLATE_ROWS}×{PLATE_COLS} numeric block "
+        f"in any sheet of '{filepath}'.\n"
+        "Check that the file contains the raw absorbance matrix and re-run."
+    )
 
 
 def section_stats(data: pd.DataFrame, col_start: int, col_end: int):
