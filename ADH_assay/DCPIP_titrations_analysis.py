@@ -48,6 +48,8 @@ DEST_VOL_uL = 60         # µL already present in destination
 
 DILUTION_FACTOR = TRANSFER_VOL_uL / (TRANSFER_VOL_uL + DEST_VOL_uL)  # = 1/3
 
+PATH_LENGTH_CM = 0.55  # optical path length of 384-well plate (≈5.5 mm at 60 µL)
+
 SECTIONS = {
     "MES pH 6":   (0, 8),   # columns 0-7  (0-indexed)
     "HEPES pH 7": (8, 16),  # columns 8-15
@@ -205,7 +207,7 @@ def make_figure(data: pd.DataFrame, output_path: str) -> None:
         slope, intercept, r_value, p_value, _ = linregress(conc_plot, mean_plot)
         x_fit = np.linspace(conc_plot[-1], conc_plot[0], 200)
         y_fit = slope * x_fit + intercept
-        epsilon = slope * 1e6  # AU/µM × 10⁶ → M⁻¹cm⁻¹
+        epsilon = slope * 1e6 / PATH_LENGTH_CM  # AU/µM × 10⁶ / path(cm) → M⁻¹cm⁻¹
         # Each parameter gets its own legend entry so values always render
         ax.plot(x_fit, y_fit, "--", color="black", linewidth=1.4, alpha=0.85,
                 label=f"Linear fit  $R^2$ = {r_value**2:.4f}")
@@ -226,7 +228,7 @@ def make_figure(data: pd.DataFrame, output_path: str) -> None:
         ax.tick_params(axis="x", which="major", rotation=30)
 
         # Y-axis: 0 to 2 absorbance units
-        ax.set_ylim(bottom=0, top=2)
+        ax.set_ylim(bottom=0, top=4)
 
         ax.legend(fontsize=8, loc="upper left",
                   framealpha=0.85, edgecolor="gray", borderpad=0.7)
@@ -271,7 +273,7 @@ def make_overlay_figure(data: pd.DataFrame, output_path: str) -> None:
     ax.tick_params(axis="x", which="major", rotation=30)
 
     # Y-axis: 0 to 2 absorbance units
-    ax.set_ylim(bottom=0, top=2)
+    ax.set_ylim(bottom=0, top=4)
 
     ax.legend(fontsize=10, framealpha=0.85, edgecolor="gray")
     ax.grid(True, which="both", linestyle="--", alpha=0.4)
