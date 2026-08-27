@@ -186,10 +186,10 @@ def make_figure(data: pd.DataFrame, output_path: str) -> None:
             ax.plot(concentrations, data.iloc[:, col_idx].values,
                     color=color, alpha=0.15, linewidth=0.8)
 
-        # Mean ± std error bars
+        # Mean ± SD error bars
         ax.errorbar(concentrations, mean_abs, yerr=std_abs,
                     marker=marker, color=color, linewidth=1.8, markersize=6,
-                    capsize=3, label="Mean ± SD")
+                    capsize=3, label=f"Mean \u00b1 SD (n={col_end - col_start})")
 
         # Linear regression on the linear portion (first 8 points)
         n_linear = min(8, PLATE_ROWS)
@@ -199,20 +199,37 @@ def make_figure(data: pd.DataFrame, output_path: str) -> None:
         y_fit = slope * x_fit + intercept
         # slope is AU/µM; multiply by 1e6 to convert to M⁻¹cm⁻¹ (Beer–Lambert, 1 cm path)
         epsilon = slope * 1e6
-        ax.plot(x_fit, y_fit, "--", color="black", linewidth=1.2, alpha=0.7,
-                label=f"Linear fit (R²={r_value**2:.3f})\nε={epsilon:.0f} M⁻¹cm⁻¹")
+        # Two separate legend entries so values are always visible
+        ax.plot(x_fit, y_fit, "--", color="black", linewidth=1.2, alpha=0.8,
+                label=f"Linear fit  R\u00b2 = {r_value**2:.4f}")
+        # Invisible proxy artist for the extinction coefficient line
+        ax.plot([], [], " ", label=f"\u03b5 = {epsilon:.0f} M\u207b\u00b9cm\u207b\u00b9")
 
         ax.set_xscale("log")
-        ax.set_xlabel("[DCPIP] (µM)", fontsize=11)
+        ax.set_xlabel("[DCPIP] (\u00b5M)", fontsize=11)
         ax.set_ylabel("Absorbance (a.u.)", fontsize=11)
         ax.set_title(section_name, fontsize=12)
-        ax.legend(fontsize=8, loc="upper left")
-        ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:.1f}"))
+
+        # Set x-axis limits tightly to the data range (no extra blank decades)
+        x_min = concentrations[-1] * 0.7
+        x_max = concentrations[0] * 1.5
+        ax.set_xlim(x_min, x_max)
+
+        # Nice log-scale x ticks: one per decade plus half-decade if space allows
+        ax.xaxis.set_major_locator(ticker.LogLocator(base=10, numticks=8))
+        ax.xaxis.set_major_formatter(ticker.FuncFormatter(
+            lambda x, _: f"{x:.3g}"))
+        ax.xaxis.set_minor_locator(ticker.LogLocator(base=10, subs=np.arange(2, 10) * 0.1))
+        ax.xaxis.set_minor_formatter(ticker.NullFormatter())
+        ax.tick_params(axis="x", which="major", rotation=30)
+
+        ax.legend(fontsize=8, loc="upper left",
+                  framealpha=0.85, edgecolor="gray", borderpad=0.6)
         ax.grid(True, which="both", linestyle="--", alpha=0.4)
 
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    print(f"Figure saved → {output_path}")
+    print(f"Figure saved \u2192 {output_path}")
     plt.show()
 
 
@@ -224,20 +241,30 @@ def make_overlay_figure(data: pd.DataFrame, output_path: str) -> None:
     concentrations = compute_dcpip_concentrations(PLATE_ROWS)
 
     fig, ax = plt.subplots(figsize=(8, 5))
-    fig.suptitle("DCPIP Titration — All pH Conditions", fontsize=13, fontweight="bold")
+    fig.suptitle("DCPIP Titration \u2014 All pH Conditions", fontsize=13, fontweight="bold")
 
     for section_name, (col_start, col_end) in SECTIONS.items():
-        mean_abs, _ = section_stats(data, col_start, col_end)
+        mean_abs, std_abs = section_stats(data, col_start, col_end)
         color = SECTION_COLORS[section_name]
         marker = SECTION_MARKERS[section_name]
-        ax.plot(concentrations, mean_abs, marker=marker, color=color,
-                linewidth=2, markersize=7, label=section_name)
+        ax.errorbar(concentrations, mean_abs, yerr=std_abs,
+                    marker=marker, color=color, linewidth=2, markersize=7,
+                    capsize=3, label=section_name)
 
     ax.set_xscale("log")
-    ax.set_xlabel("[DCPIP] (µM)", fontsize=12)
+    ax.set_xlabel("[DCPIP] (\u00b5M)", fontsize=12)
     ax.set_ylabel("Absorbance (a.u.)", fontsize=12)
-    ax.legend(fontsize=10)
-    ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:.1f}"))
+
+    x_min = concentrations[-1] * 0.7
+    x_max = concentrations[0] * 1.5
+    ax.set_xlim(x_min, x_max)
+    ax.xaxis.set_major_locator(ticker.LogLocator(base=10, numticks=8))
+    ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:.3g}"))
+    ax.xaxis.set_minor_locator(ticker.LogLocator(base=10, subs=np.arange(2, 10) * 0.1))
+    ax.xaxis.set_minor_formatter(ticker.NullFormatter())
+    ax.tick_params(axis="x", which="major", rotation=30)
+
+    ax.legend(fontsize=10, framealpha=0.85, edgecolor="gray")
     ax.grid(True, which="both", linestyle="--", alpha=0.4)
 
     plt.tight_layout()
