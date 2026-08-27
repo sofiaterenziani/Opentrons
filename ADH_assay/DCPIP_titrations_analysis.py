@@ -173,64 +173,67 @@ def section_stats(data: pd.DataFrame, col_start: int, col_end: int):
 def make_figure(data: pd.DataFrame, output_path: str) -> None:
     concentrations = compute_dcpip_concentrations(PLATE_ROWS)  # µM, length 16
 
+    # Only plot the rows where there is meaningful signal (first N_SIGNAL rows)
+    # Row 9+ have concentrations below ~0.08 µM where absorbance is near zero/noise.
+    N_SIGNAL = 8
+    conc_plot = concentrations[:N_SIGNAL]
+
     fig, axes = plt.subplots(1, 3, figsize=(15, 5), sharey=False)
     fig.suptitle("DCPIP Titration Curves — 384-Well Plate", fontsize=14, fontweight="bold")
 
     for ax, (section_name, (col_start, col_end)) in zip(axes, SECTIONS.items()):
         mean_abs, std_abs = section_stats(data, col_start, col_end)
+        # Restrict to signal rows
+        mean_plot = mean_abs[:N_SIGNAL]
+        std_plot = std_abs[:N_SIGNAL]
         color = SECTION_COLORS[section_name]
         marker = SECTION_MARKERS[section_name]
 
-        # Per-replicate (per-column) lines, semi-transparent
+        # Per-replicate (per-column) traces, semi-transparent
         for col_idx in range(col_start, col_end):
-            ax.plot(concentrations, data.iloc[:, col_idx].values,
+            ax.plot(conc_plot, data.iloc[:N_SIGNAL, col_idx].values,
                     color=color, alpha=0.15, linewidth=0.8)
 
-        # Mean ± SD error bars
-        ax.errorbar(concentrations, mean_abs, yerr=std_abs,
+        # Mean ± SD error bars — include actual mean of first row in label
+        mean_max = mean_plot[0]
+        ax.errorbar(conc_plot, mean_plot, yerr=std_plot,
                     marker=marker, color=color, linewidth=1.8, markersize=6,
-                    capsize=3, label=f"Mean \u00b1 SD (n={col_end - col_start})")
+                    capsize=3,
+                    label=f"Mean $\\pm$ SD  (n={col_end - col_start})\n"
+                          f"Mean (500 $\\mu$M) = {mean_max:.4f} AU")
 
-        # Linear regression on the linear portion (first 8 points)
-        n_linear = min(8, PLATE_ROWS)
-        slope, intercept, r_value, p_value, _ = linregress(
-            concentrations[:n_linear], mean_abs[:n_linear])
-        x_fit = np.linspace(concentrations[n_linear - 1], concentrations[0], 200)
+        # Linear regression across all signal points
+        slope, intercept, r_value, p_value, _ = linregress(conc_plot, mean_plot)
+        x_fit = np.linspace(conc_plot[-1], conc_plot[0], 200)
         y_fit = slope * x_fit + intercept
-        # slope is AU/µM; multiply by 1e6 to convert to M⁻¹cm⁻¹ (Beer–Lambert, 1 cm path)
+        # slope is AU/µM; ×10⁶ → M⁻¹cm⁻¹ (Beer–Lambert, 1 cm path length)
         epsilon = slope * 1e6
-        # Two separate legend entries so values are always visible
-        ax.plot(x_fit, y_fit, "--", color="black", linewidth=1.2, alpha=0.8,
-                label=f"Linear fit  R\u00b2 = {r_value**2:.4f}")
-        # Invisible proxy artist for the extinction coefficient line
-        ax.plot([], [], " ", label=f"\u03b5 = {epsilon:.0f} M\u207b\u00b9cm\u207b\u00b9")
+        ax.plot(x_fit, y_fit, "--", color="black", linewidth=1.4, alpha=0.85,
+                label=f"Linear fit\n"
+                      f"$R^2$ = {r_value**2:.4f}\n"
+                      f"$\\varepsilon$ = {epsilon:.0f} $M^{{-1}}cm^{{-1}}$")
 
         ax.set_xscale("log")
-        ax.set_xlabel("[DCPIP] (\u00b5M)", fontsize=11)
+        ax.set_xlabel("[DCPIP] ($\\mu$M)", fontsize=11)
         ax.set_ylabel("Absorbance (a.u.)", fontsize=11)
         ax.set_title(section_name, fontsize=12)
 
-        # Set x-axis limits tightly to the data range (no extra blank decades)
-        x_min = concentrations[-1] * 0.7
-        x_max = concentrations[0] * 1.5
-        ax.set_xlim(x_min, x_max)
-
-        # Nice log-scale x ticks: one per decade plus half-decade if space allows
-        ax.xaxis.set_major_locator(ticker.LogLocator(base=10, numticks=8))
-        ax.xaxis.set_major_formatter(ticker.FuncFormatter(
-            lambda x, _: f"{x:.3g}"))
+        # X-axis: tight around the plotted concentration range only
+        ax.set_xlim(conc_plot[-1] * 0.6, conc_plot[0] * 2.0)
+        ax.xaxis.set_major_locator(ticker.LogLocator(base=10, numticks=6))
+        ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:.3g}"))
         ax.xaxis.set_minor_locator(ticker.LogLocator(base=10, subs=np.arange(2, 10) * 0.1))
         ax.xaxis.set_minor_formatter(ticker.NullFormatter())
         ax.tick_params(axis="x", which="major", rotation=30)
 
         ax.legend(fontsize=8, loc="upper left",
-                  framealpha=0.85, edgecolor="gray", borderpad=0.6)
+                  framealpha=0.85, edgecolor="gray", borderpad=0.7)
         ax.grid(True, which="both", linestyle="--", alpha=0.4)
 
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    print(f"Figure saved \u2192 {output_path}")
-    plt.show()
+    print(f"Figure saved -> {output_path}")
+    plt.close(fig)
 
 
 # ---------------------------------------------------------------------------
@@ -240,25 +243,26 @@ def make_figure(data: pd.DataFrame, output_path: str) -> None:
 def make_overlay_figure(data: pd.DataFrame, output_path: str) -> None:
     concentrations = compute_dcpip_concentrations(PLATE_ROWS)
 
+    N_SIGNAL = 8
+    conc_plot = concentrations[:N_SIGNAL]
+
     fig, ax = plt.subplots(figsize=(8, 5))
-    fig.suptitle("DCPIP Titration \u2014 All pH Conditions", fontsize=13, fontweight="bold")
+    fig.suptitle("DCPIP Titration — All pH Conditions", fontsize=13, fontweight="bold")
 
     for section_name, (col_start, col_end) in SECTIONS.items():
         mean_abs, std_abs = section_stats(data, col_start, col_end)
         color = SECTION_COLORS[section_name]
         marker = SECTION_MARKERS[section_name]
-        ax.errorbar(concentrations, mean_abs, yerr=std_abs,
+        ax.errorbar(conc_plot, mean_abs[:N_SIGNAL], yerr=std_abs[:N_SIGNAL],
                     marker=marker, color=color, linewidth=2, markersize=7,
                     capsize=3, label=section_name)
 
     ax.set_xscale("log")
-    ax.set_xlabel("[DCPIP] (\u00b5M)", fontsize=12)
+    ax.set_xlabel("[DCPIP] ($\\mu$M)", fontsize=12)
     ax.set_ylabel("Absorbance (a.u.)", fontsize=12)
 
-    x_min = concentrations[-1] * 0.7
-    x_max = concentrations[0] * 1.5
-    ax.set_xlim(x_min, x_max)
-    ax.xaxis.set_major_locator(ticker.LogLocator(base=10, numticks=8))
+    ax.set_xlim(conc_plot[-1] * 0.6, conc_plot[0] * 2.0)
+    ax.xaxis.set_major_locator(ticker.LogLocator(base=10, numticks=6))
     ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:.3g}"))
     ax.xaxis.set_minor_locator(ticker.LogLocator(base=10, subs=np.arange(2, 10) * 0.1))
     ax.xaxis.set_minor_formatter(ticker.NullFormatter())
