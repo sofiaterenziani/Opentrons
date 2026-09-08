@@ -89,7 +89,7 @@ def add_buffer(protocol):
  
 def add_and_titrate_dcpip(protocol):
     pickup_tips('row', protocol)
-    pipette.transfer(90, dcpip[0], plate.wells_by_name()['A1'], new_tip='never', disposal_volume=10)
+    pipette.transfer(90, dcpip[0], plate.wells_by_name()['A1'], new_tip='never')
     pipette.transfer(90, dcpip[0], plate.wells_by_name()['A2'], new_tip='never')
     pipette.drop_tip()
 
