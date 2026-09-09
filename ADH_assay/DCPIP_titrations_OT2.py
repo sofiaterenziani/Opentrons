@@ -13,27 +13,27 @@ metadata = {
     'description': 'Protocol for DCPIP titrations using the Opentrons OT-2 robot, starting at 500uM DCPIP, and testing at pH 6,7,8',
 }
 
-requirements = {
-    'robotType': 'OT-2', 'apiLevel': '2.16'
-}
+requirements = {'robotType': 'OT-2', 'apiLevel': '2.16'}
 
-def run (protocol):
+
+def run(protocol):
     protocol.set_rail_lights(True)
     setup(protocol)
     define_liquids(protocol)
     add_20uL_buffer(protocol)
     add_and_titrate_dcpip(protocol)
-    #add_20uL_buffer_and_mix(protocol)
+    add_final_40uL_buffer(protocol)
     protocol.set_rail_lights(False)
+
 
 def setup(protocol):
     # Load Labware
     global tips_300, plate, buffer, p300m, dcpip
-    tips_300 = protocol.load_labware('opentrons_96_tiprack_300ul', '1')
-    plate = protocol.load_labware('corning_384_wellplate_112ul_flat', '2')
-    buffer = protocol.load_labware('nest_12_reservoir_15ml', '3')
+    tips_300 = protocol.load_labware('opentrons_96_tiprack_300ul', '7')
+    plate = protocol.load_labware('corning_384_wellplate_112ul_flat', '8')
+    buffer = protocol.load_labware('nest_12_reservoir_15ml', '9')
     p300m = protocol.load_instrument('p300_multi_gen2', 'left', tip_racks=[tips_300])
-    dcpip = protocol.load_labware('greiner_96_wellplate_323ul', '4')
+    dcpip = protocol.load_labware('greiner_96_wellplate_323ul', '10')
 
     # Reagents
     global buffer_pH6, buffer_pH7, buffer_pH8, dcpip_pH6, dcpip_pH7, dcpip_pH8, liquid_waste
@@ -45,7 +45,6 @@ def setup(protocol):
     dcpip_pH8 = dcpip.columns()[2]
     liquid_waste = dcpip.columns()[11][0]
 
-    # Define liquids
 
 def define_liquids(protocol):
     """Add color-coded reagents and their starting volumes to the visualization."""
@@ -75,39 +74,37 @@ def define_liquids(protocol):
     for well in dcpip_pH8:
         well.load_liquid(liquid=dcpip_pH8_liquid, volume=300)
 
-def add_20uL_buffer(protocol):
-    """Add the initial buffer volume to every non-DCPIP assay column.
 
-    DCPIP-only wells in columns 1, 9, and 17 receive no buffer. The final buffer-only
-    wells in columns 8, 16, and 24 start with 40 uL to keep the final 60 uL total
-    consistent with the titration design.
+def add_20uL_buffer(protocol):
+    """Add the initial buffer volume to each pH block before DCPIP transfer.
+
+    DCPIP-only wells in columns 1, 9, and 17 receive no initial buffer. All other
+    columns in the block receive 20 uL so the last two columns finish as 60 uL
+    buffer-only controls after the final buffer addition.
     """
-    # pH 6 block: columns 1-8 (column 1 has no buffer; column 8 gets 40 uL)
+    # pH 6 block: columns 1-8 (column 1 has no buffer)
     p300m.pick_up_tip()
     for idx, column in enumerate(plate.columns()[0:8]):
         if idx == 0:
             continue
-        volume = 40 if idx == 7 else 10
-        p300m.distribute(volume, buffer_pH6[0], column, new_tip='never')
-    p300m.drop_tip()
+        p300m.distribute(20, buffer_pH6[0], column, new_tip='never', disposal_volume=0, blow_out=False)
+    p300m.return_tip()
 
-    # pH 7 block: columns 9-16 (column 9 has no buffer; column 16 gets 40 uL)
+    # pH 7 block: columns 9-16 (column 9 has no buffer)
     p300m.pick_up_tip()
     for idx, column in enumerate(plate.columns()[8:16]):
         if idx == 0:
             continue
-        volume = 40 if idx == 7 else 10
-        p300m.distribute(volume, buffer_pH7[0], column, new_tip='never')
-    p300m.drop_tip()
+        p300m.distribute(20, buffer_pH7[0], column, new_tip='never', disposal_volume=0, blow_out=False)
+    p300m.return_tip()
 
-    # pH 8 block: columns 17-24 (column 17 has no buffer; column 24 gets 40 uL)
+    # pH 8 block: columns 17-24 (column 17 has no buffer)
     p300m.pick_up_tip()
     for idx, column in enumerate(plate.columns()[16:24]):
         if idx == 0:
             continue
-        volume = 40 if idx == 7 else 10
-        p300m.distribute(volume, buffer_pH8[0], column, new_tip='never')
-    p300m.drop_tip()
+        p300m.distribute(20, buffer_pH8[0], column, new_tip='never', disposal_volume=0, blow_out=False)
+    p300m.return_tip()
 
 
 def add_and_titrate_dcpip(protocol):
@@ -123,26 +120,37 @@ def add_and_titrate_dcpip(protocol):
     # Add DCPIP once and then serially transfer within that pH condition using the same tip.
     for dcpip_source, dcpip_only_column, titration_columns in dcpip_conditions:
         p300m.pick_up_tip()
-        p300m.distribute(90, dcpip_source[0], dcpip_only_column, new_tip='never')
+        p300m.distribute(50, dcpip_source[0], dcpip_only_column, new_tip='never')
         serial_sources = [dcpip_only_column, *titration_columns[:-1]]
-        p300m.transfer(30, serial_sources, titration_columns,
-                       new_tip='never', mix_after=(3, 30))
-        p300m.drop_tip()
+        p300m.transfer(30, serial_sources, titration_columns, new_tip='never', mix_after=(3, 30))
+        excess_column = titration_columns[-1]
+        # A 384 column has 16 wells; remove from both A/C/.../O and B/D/.../P row sets.
+        p300m.aspirate(30, excess_column[0])
+        p300m.dispense(30, liquid_waste)
+        p300m.aspirate(30, excess_column[1])
+        p300m.dispense(30, liquid_waste)
+        p300m.return_tip()
 
-    # Add the final 50 uL to every assay well except the DCPIP-only wells,
-    # then remove the extra 10 uL from the final titration column in each pH block.
+
+def add_final_40uL_buffer(protocol):
+    # Add the final 40 uL buffer to every column in each pH block.
     buffer_groups = (
-        (buffer_pH6[0], plate.columns()[1:8], plate.columns()[6]),
-        (buffer_pH7[0], plate.columns()[9:16], plate.columns()[14]),
-        (buffer_pH8[0], plate.columns()[17:24], plate.columns()[22]),
+        (buffer_pH6[1], plate.columns()[0:8]),
+        (buffer_pH7[1], plate.columns()[8:16]),
+        (buffer_pH8[1], plate.columns()[16:24]),
     )
-    for buffer_source, columns, excess_column in buffer_groups:
+
+    previous_default_speed = p300m.default_speed
+    p300m.default_speed = 40
+
+    for buffer_source, columns in buffer_groups:
         p300m.pick_up_tip()
-        for column in columns:
-            if column == plate.columns()[0] or column == plate.columns()[8] or column == plate.columns()[16]:
-                continue
-            p300m.distribute(50, buffer_source, column, new_tip='never', mix_after=(3, 50))
-        p300m.aspirate(10, excess_column[0])
-        p300m.dispense(10, liquid_waste)
-        p300m.drop_tip()
+        # Batch destinations to minimize source-to-plate shuttling while keeping top dispensing.
+        row_set_1 = [column[0].top(-2) for column in columns]
+        row_set_2 = [column[1].top(-2) for column in columns]
+        p300m.distribute(40, buffer_source, row_set_1, new_tip='never', disposal_volume=0, blow_out=False)
+        p300m.distribute(40, buffer_source, row_set_2, new_tip='never', disposal_volume=0, blow_out=False)
+        p300m.return_tip()
+
+    p300m.default_speed = previous_default_speed
 
