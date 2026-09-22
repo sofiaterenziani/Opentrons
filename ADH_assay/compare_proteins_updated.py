@@ -34,12 +34,15 @@ import argparse
 import csv
 import json
 import math
+import os
+import tempfile
 from collections import defaultdict
 from dataclasses import dataclass, replace
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.lines import Line2D
 
 
 METAL_ORDER = [
@@ -1054,7 +1057,7 @@ def plot_heatmaps(
     metals = [metal for metal in METAL_ORDER if any(row.metal == metal for row in rows)]
     metals += sorted({row.metal for row in rows} - set(metals))
     lookup = {(row.protein, row.pH, row.substrate, row.metal): row.mean_kcat for row in rows}
-    figure, axes = plt.subplots(len(pH_values), len(proteins), figsize=(7.1, max(3.0, 2.1 * len(pH_values))), squeeze=False)
+    figure, axes = plt.subplots(len(pH_values), len(proteins), figsize=(9.2, max(3.0, 2.1 * len(pH_values))), squeeze=False)
     values = np.array([row.mean_kcat for row in rows], dtype=float)
     lower = min(0.0, float(np.nanmin(values)))
     upper = vmax if vmax is not None else float(np.nanmax(values))
@@ -1065,11 +1068,65 @@ def plot_heatmaps(
             image = axis.imshow(grid, aspect="auto", interpolation="nearest", cmap="viridis", vmin=lower, vmax=upper)
             axis.set_title(f"{protein}, pH {pH:g}")
             axis.set_xticks(range(len(metals)), labels=metals, rotation=90)
+            axis.tick_params(axis="x", labelsize=7, length=0)
+            axis.tick_params(axis="y", labelsize=7, length=0, pad=2)
             axis.set_yticks(range(len(substrates)), labels=substrates)
-            axis.tick_params(length=0)
-    figure.colorbar(image, ax=axes.ravel().tolist(), shrink=0.75, label="kcat (s^-1)")
-    figure.tight_layout()
+            for label in axis.get_yticklabels():
+                label.set_horizontalalignment("right")
+    figure.subplots_adjust(left=0.18, right=0.88, bottom=0.11, top=0.93, wspace=0.56, hspace=0.28)
+    color_axis = figure.add_axes((0.90, 0.16, 0.02, 0.68))
+    colorbar = figure.colorbar(image, cax=color_axis)
+    colorbar.set_label("kcat (s$^{-1}$)")
     finalize_figure(figure, out_path)
+
+
+def build_condition_legend_handles(
+    proteins: list[str],
+    pH_values: list[float],
+    colors: list[tuple[float, float, float, float] | tuple[float, float, float]],
+    marker_map: dict[str, str],
+) -> list[Line2D]:
+    handles: list[Line2D] = []
+    for protein_index, protein in enumerate(proteins):
+        color = colors[protein_index % len(colors)]
+        for pH_index, pH in enumerate(pH_values):
+            alpha = 0.35 + 0.65 * (pH_index / max(1, len(pH_values) - 1))
+            handles.append(Line2D(
+                [], [], linestyle="none", marker=marker_map[protein], markersize=5,
+                markerfacecolor=color, markeredgewidth=0, alpha=alpha,
+                label=f"{protein}, pH {pH:g}",
+            ))
+    return handles
+
+
+def add_stacked_condition_legends(
+    figure,
+    proteins: list[str],
+    pH_values: list[float],
+    colors: list[tuple[float, float, float, float] | tuple[float, float, float]],
+    marker_map: dict[str, str],
+) -> None:
+    for legend_index, protein in enumerate(proteins):
+        handles: list[Line2D] = []
+        protein_index = proteins.index(protein)
+        color = colors[protein_index % len(colors)]
+        for pH_index, pH in enumerate(pH_values):
+            alpha = 0.35 + 0.65 * (pH_index / max(1, len(pH_values) - 1))
+            handles.append(Line2D(
+                [], [], linestyle="none", marker=marker_map[protein], markersize=5,
+                markerfacecolor=color, markeredgewidth=0, alpha=alpha,
+                label=f"{protein} pH {pH:g}",
+            ))
+        legend = figure.legend(
+            handles=handles,
+            frameon=False,
+            loc="upper center",
+            ncol=max(1, len(pH_values)),
+            bbox_to_anchor=(0.5, 0.995 - legend_index * 0.045),
+            handletextpad=0.4,
+            columnspacing=1.0,
+        )
+        figure.add_artist(legend)
 
 
 def plot_descriptor_panels(
@@ -1086,6 +1143,7 @@ def plot_descriptor_panels(
     marker_map = {protein: marker for protein, marker in zip(proteins, ["o", "s", "^", "D", "v", "P"])}
     flat_axes = axes.ravel()
     for axis, descriptor in zip(flat_axes, descriptors):
+        pretty_label = xlabels.get(descriptor, descriptor.replace("_", " "))
         for protein_index, protein in enumerate(proteins):
             for pH_index, pH in enumerate(pH_values):
                 subset = [row for row in rows if row["protein"] == protein and float(row["pH"]) == pH]
@@ -1096,19 +1154,13 @@ def plot_descriptor_panels(
                 alpha = 0.35 + 0.65 * (pH_index / max(1, len(pH_values) - 1))
                 axis.scatter(x_array, y_array, s=16, marker=marker_map[protein], color=color, alpha=alpha,
                              label=f"{protein}, pH {pH:g}")
-                if x_array.size >= 2 and not np.allclose(x_array, x_array[0]):
-                    slope, intercept = np.polyfit(x_array, y_array, 1)
-                    xs = np.linspace(np.min(x_array), np.max(x_array), 50)
-                    axis.plot(xs, slope * xs + intercept, color=color, alpha=alpha, linewidth=0.7)
-        axis.set_xlabel(xlabels.get(descriptor, descriptor))
-        axis.set_ylabel("mean kcat (s^-1)")
-        axis.set_title(descriptor)
+        axis.set_xlabel("")
+        axis.set_ylabel("mean kcat (s$^{-1}$)")
+        axis.set_title(pretty_label)
     for axis in flat_axes[len(descriptors):]:
         axis.axis("off")
-    handles, labels = flat_axes[0].get_legend_handles_labels()
-    if handles:
-        figure.legend(handles, labels, frameon=False, loc="upper center", ncol=min(3, len(labels)))
-    figure.tight_layout(rect=(0, 0, 1, 0.95))
+    add_stacked_condition_legends(figure, proteins, pH_values, list(colors), marker_map)
+    figure.tight_layout(rect=(0, 0, 1, 0.89))
     finalize_figure(figure, out_path)
 
 
@@ -1124,6 +1176,12 @@ def plot_protein_scatter(pair_rows: list[dict[str, object]], proteins: list[str]
     pH_values = sorted({float(row["pH"]) for row in pair_rows})
     pH_min = min(pH_values)
     pH_span = max(pH_values) - pH_min if len(pH_values) > 1 else 1.0
+    legend_handles: list[Line2D] = []
+    for pH in pH_values:
+        color = cmap((pH - pH_min) / pH_span)
+        legend_handles.append(Line2D([], [], linestyle="none", marker="o", markersize=5,
+                                     markerfacecolor=color, markeredgewidth=0, alpha=0.8,
+                                     label=f"pH {pH:g}"))
     for row in pair_rows:
         pH = float(row["pH"])
         color = cmap((pH - pH_min) / pH_span)
@@ -1132,18 +1190,37 @@ def plot_protein_scatter(pair_rows: list[dict[str, object]], proteins: list[str]
     if finite_x.size:
         low = min(float(np.min(finite_x)), float(np.min(finite_y)))
         high = max(float(np.max(finite_x)), float(np.max(finite_y)))
-        axis.plot([low, high], [low, high], color="0.3", linewidth=0.8, linestyle="--")
-    axis.set_xlabel(f"{left} mean kcat (s^-1)")
-    axis.set_ylabel(f"{right} mean kcat (s^-1)")
+        padding = 0.04 * (high - low if high > low else max(high, 1.0))
+        axis.set_xlim(low - padding, high + padding)
+        axis.set_ylim(low - padding, high + padding)
+        axis.set_aspect("equal", adjustable="box")
+    axis.set_xlabel(f"{left} mean kcat (s$^{-1}$)")
+    axis.set_ylabel(f"{right} mean kcat (s$^{-1}$)")
     axis.set_title(f"{right} vs {left} matched-condition comparison")
+    axis.legend(handles=legend_handles, frameon=False, loc="best")
     figure.tight_layout()
     finalize_figure(figure, out_path)
 
 
 def finalize_figure(figure, out_path: Path) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    figure.savefig(out_path, format="pdf")
-    figure.savefig(out_path.with_suffix(".png"), format="png", dpi=600)
+    pdf_path = out_path.resolve()
+    png_path = out_path.with_suffix(".png").resolve()
+    figure.savefig(str(pdf_path), format="pdf")
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".png", dir=png_path.parent, delete=False) as handle:
+            temp_png = Path(handle.name)
+        try:
+            figure.savefig(str(temp_png), format="png", dpi=600)
+            if os.name == "nt":
+                os.replace(str(temp_png), "\\\\?\\" + str(png_path))
+            else:
+                os.replace(str(temp_png), str(png_path))
+        finally:
+            if temp_png.exists():
+                temp_png.unlink()
+    except OSError as exc:
+        print(f"WARNING: could not write PNG {png_path.name}: {exc}")
     plt.close(figure)
 
 
@@ -1291,7 +1368,7 @@ def main() -> None:
                 "carbon_number": "substrate carbon number",
                 "logp": "substrate logP",
                 "logd": "substrate logD at assay pH",
-                "tpsa_a2": "substrate TPSA (A^2)",
+                "tpsa_a2": "substrate TPSA (Å$^2$)",
                 "rotatable_bonds": "rotatable bond count",
                 "hydroxyl_count": "hydroxyl count",
                 "predicted_charge": "predicted charge at assay pH",
@@ -1307,7 +1384,7 @@ def main() -> None:
                 "ionic_radius_pm": "ionic radius (pm)",
                 "atomic_number": "atomic number",
                 "f_electron_count": "4f electron count",
-                "charge_density_charge_per_a2": "charge density (charge/A^2)",
+                "charge_density_charge_per_a2": "charge density (charge Å$^{-2}$)",
             },
             outdir / f"{args.label}_metal_descriptors.pdf",
         )
