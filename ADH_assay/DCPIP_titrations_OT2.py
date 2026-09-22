@@ -120,7 +120,7 @@ def add_and_titrate_dcpip(protocol):
     # Add DCPIP once and then serially transfer within that pH condition using the same tip.
     for dcpip_source, dcpip_only_column, titration_columns in dcpip_conditions:
         p300m.pick_up_tip()
-        p300m.distribute(50, dcpip_source[0], dcpip_only_column, new_tip='never')
+        p300m.distribute(50, dcpip_source[0], dcpip_only_column, new_tip='never', disposal_volume=0)
         serial_sources = [dcpip_only_column, *titration_columns[:-1]]
         p300m.transfer(30, serial_sources, titration_columns, new_tip='never', mix_after=(3, 30))
         excess_column = titration_columns[-1]
